@@ -1,275 +1,197 @@
-# 今日头条 · 新闻资讯项目
+# 私厨 · Private Chief
 
-基于 **FastAPI + Vue 3** 的新闻资讯全栈学习项目，实现新闻浏览、用户体系、收藏/历史、以及 AI 智能问答等功能。
-
-> **说明**：本仓库（或本目录）中，仅以下两个文件夹属于「今日头条」项目代码：
->
-> - `toutiao_backend/` — 后端 API 服务
-> - `xwzx-news/` — 前端 Web 应用
->
-> 其他目录（如课程练习、参考项目等）与本项目无关，上传 GitHub 时建议只保留上述两个目录及本 README。
+上传食材照片或文字清单，由 AI 私人厨师识别食材、联网检索菜谱，并按**营养价值**与**制作难度**排序，给出结构化推荐方案。
 
 ---
 
-## 功能特性
+## 功能概览
 
-| 模块 | 说明 |
-|------|------|
-| 新闻浏览 | 分类列表、新闻列表分页、详情、相关推荐 |
-| 用户系统 | 注册、登录、Token 鉴权、个人信息修改、改密 |
-| 收藏 | 添加 / 取消收藏、收藏列表、收藏状态检查 |
-| 浏览历史 | 记录浏览、历史列表、清空历史 |
-| AI 问答 | 对接阿里云 DashScope（通义千问），支持流式输出 |
-| 缓存 | Redis 缓存新闻分类与列表，减轻数据库压力 |
-| 前端体验 | 主题切换、国际化（i18n）、响应式布局 |
+| 能力 | 说明 |
+| --- | --- |
+| 多模态对话 | 支持文字描述 + 食材图片，流式输出菜谱建议 |
+| 联网搜菜 | Agent 优先调用 Tavily 搜索真实菜谱，再整理打分 |
+| 会话记忆 | 基于 LangGraph SqliteSaver，按 `thread_id` 保留多轮上下文 |
+| 图片上传 | 阿里云 OSS 预签名直传，前端预览后一并送给模型 |
+| 参考图代理 | `/api/v1/proxy/image` 缓解外链防盗链导致的图片无法显示 |
+| Web 界面 | 内置静态前端：历史会话、新对话、停止生成、清空当前会话 |
 
 ---
 
 ## 技术栈
 
-**后端 (`toutiao_backend`)**
-
-- Python 3.10+
-- FastAPI + Uvicorn
-- SQLAlchemy（异步）+ aiomysql
-- MySQL 8.x
-- Redis（异步客户端）
-- Passlib（bcrypt 密码加密）
-- httpx（调用大模型 API）
-
-**前端 (`xwzx-news`)**
-
-- Vue 3 + Vite
-- Vue Router + Pinia
-- Vant 4（UI 组件）
-- Axios、vue-i18n、marked、DOMPurify
+| 层级 | 技术 |
+| --- | --- |
+| 大模型 | 通义千问（DashScope OpenAI 兼容接口），默认 `qwen3.5-plus` |
+| Agent | LangChain `create_agent` + TavilySearch |
+| 会话持久化 | LangGraph `SqliteSaver`（`app/db/personal_chief.db`） |
+| 后端 | Python ≥ 3.13、FastAPI、Uvicorn |
+| 对象存储 | 阿里云 OSS（预签名上传） |
+| 前端 | 原生 HTML / CSS / JS（`app/static`） |
 
 ---
 
-## 项目结构
+## 工作流程
 
-```text
-.
-├── README.md
-├── toutiao_backend/          # 后端
-│   ├── main.py               # FastAPI 入口
-│   ├── config/               # 数据库 / Redis / AI 配置
-│   ├── models/               # ORM 模型
-│   ├── schemas/              # Pydantic 请求/响应模型
-│   ├── crud/                 # 数据访问层
-│   ├── routers/              # 路由（news / user / favorite / history / ai）
-│   ├── cache/                # 缓存封装
-│   ├── utils/                # 鉴权、响应、异常处理等
-│   └── requirements.txt      # Python 依赖
-└── xwzx-news/                # 前端
-    ├── src/
-    │   ├── views/            # 页面
-    │   ├── components/       # 组件
-    │   ├── router/           # 路由
-    │   ├── store/            # Pinia 状态
-    │   ├── config/api.js     # 后端 API 地址
-    │   └── ...
-    ├── package.json
-    └── vite.config.js
+```
+用户上传食材图 / 输入清单
+        ↓
+识别食材与新鲜度 → 整理「可用食材清单」
+        ↓
+调用 web_search（Tavily）检索菜谱
+        ↓
+按营养价值、制作难度打分排序
+        ↓
+流式返回结构化推荐报告（可含参考图）
 ```
 
 ---
 
-## 环境准备
+## 目录结构
 
-### 1. 基础软件
-
-- [Python](https://www.python.org/) 3.10 及以上
-- [Node.js](https://nodejs.org/) 18 及以上（建议 LTS）
-- [MySQL](https://dev.mysql.com/) 8.x
-- [Redis](https://redis.io/) 6.x 及以上
-
-### 2. 创建数据库
-
-在 MySQL 中创建库（字符集建议 `utf8mb4`）：
-
-```sql
-CREATE DATABASE news_app DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+```
+app/
+├── main.py                 # FastAPI 入口，挂载路由与静态资源
+├── agents/
+│   └── personal_chief.py   # 私厨 Agent、流式生成、会话读写
+├── api/v1/
+│   ├── chat.py             # 对话流式 / 历史 / 清空
+│   ├── oss.py              # OSS 预签名上传
+│   └── proxy.py            # 外链图片代理
+├── models/
+│   └── schemas.py          # 请求体模型
+├── common/
+│   └── logger.py           # 日志
+├── db/
+│   └── personal_chief.db   # 会话检查点（运行后自动生成）
+└── static/                 # Web 前端
+    ├── index.html
+    └── assets/
 ```
 
-按 ORM 模型建表（或自行导入已有 SQL 脚本），主要表如下：
-
-| 表名 | 说明 |
-|------|------|
-| `news_category` | 新闻分类 |
-| `news` | 新闻内容 |
-| `user` | 用户 |
-| `user_token` | 登录令牌 |
-| `favorite` | 收藏 |
-| `history` | 浏览历史 |
-
-并提前写入若干分类与新闻数据，否则前端列表为空。
-
-### 3. 启动 Redis
-
-默认连接：`localhost:6379`，数据库编号 `0`。
-
-确保本机 Redis 已启动；若端口或主机不同，请修改 `toutiao_backend/config/cache_conf.py`。
+> 本包以 `app` 形式被导入（如 `app.main:app`）。请在**包含本目录的仓库根目录**（即存在 `pyproject.toml` / `.env` 的那一层）安装依赖并启动。
 
 ---
 
-## 后端配置与启动
+## 环境要求
 
-### 1. 进入目录并创建虚拟环境
-
-```bash
-cd toutiao_backend
-python -m venv .venv
-
-# Windows PowerShell
-.\.venv\Scripts\Activate.ps1
-
-# macOS / Linux
-# source .venv/bin/activate
-```
-
-### 2. 安装依赖
-
-```bash
-pip install -r requirements.txt
-```
-
-### 3. 修改数据库连接（重要）
-
-编辑 `toutiao_backend/config/db_conf.py`，将连接串改为你的 MySQL 账号密码：
-
-```python
-ASYNC_DATABASE_URL = "mysql+aiomysql://用户名:密码@localhost:3306/news_app?charset=utf8mb4"
-```
-
-默认示例为：`root:123456@localhost:3306/news_app`。
-
-### 4.（可选）配置 AI 问答
-
-编辑 `toutiao_backend/config/ai_conf.py`，或通过环境变量配置（推荐，避免密钥进仓库）：
-
-```bash
-# Windows PowerShell 示例
-$env:DASHSCOPE_API_KEY = "你的阿里云 DashScope API Key"
-$env:DASHSCOPE_MODEL = "qwen3.5-plus"
-```
-
-| 环境变量 | 说明 |
-|----------|------|
-| `DASHSCOPE_API_KEY` | 阿里云 DashScope API Key |
-| `DASHSCOPE_MODEL` | 模型名，默认 `qwen3.5-plus` |
-| `DASHSCOPE_BASE_URL` | 兼容模式 Base URL（一般无需改） |
-
-未配置有效 Key 时，新闻等接口仍可使用，仅 AI 问答不可用。
-
-### 5. 启动服务
-
-在 `toutiao_backend` 目录下执行：
-
-```bash
-uvicorn main:app --reload --host 127.0.0.1 --port 8000
-```
-
-启动成功后：
-
-- 接口根路径：http://127.0.0.1:8000/
-- Swagger 文档：http://127.0.0.1:8000/docs
-- ReDoc 文档：http://127.0.0.1:8000/redoc
-
-### 主要 API 前缀
-
-| 前缀 | 模块 |
-|------|------|
-| `/api/news` | 分类、列表、详情、相关新闻 |
-| `/api/user` | 注册、登录、用户信息 |
-| `/api/favorite` | 收藏相关（需登录） |
-| `/api/history` | 浏览历史（需登录） |
-| `/api/ai` | AI 智能问答 |
-
-需要登录的接口请在请求头携带：`Authorization: Bearer <token>`。
+- **Python** ≥ 3.13
+- 推荐使用 **[uv](https://github.com/astral-sh/uv)** 管理依赖
+- 可用的 **DashScope（通义）** API Key
+- 可用的 **Tavily** API Key（联网搜菜）
+- 若需图片上传：阿里云 **OSS** 存储桶与 AccessKey
 
 ---
 
-## 前端配置与启动
+## 配置环境
 
 ### 1. 安装依赖
 
-```bash
-cd xwzx-news
-npm install
-```
-
-### 2. 确认后端地址
-
-默认后端地址在 `xwzx-news/src/config/api.js`：
-
-```js
-export const apiConfig = {
-  baseURL: 'http://127.0.0.1:8000',
-}
-```
-
-若后端端口或主机有变，请同步修改此处。
-
-### 3. 启动开发服务器
+在仓库根目录执行：
 
 ```bash
-npm run dev
+# 若尚未创建虚拟环境
+uv sync
+
+# 或使用已有 .venv
+uv pip install -e .
 ```
 
-终端会输出本地访问地址（一般为 http://127.0.0.1:5173/）。
-
-### 4. 构建生产包（可选）
+也可直接：
 
 ```bash
-npm run build
-npm run preview
+uv run python -c "import fastapi; print('ok')"
+```
+
+### 2. 配置环境变量
+
+在仓库根目录创建 `.env`（不要提交到 Git）：
+
+```env
+# 通义千问（DashScope OpenAI 兼容）
+DASHSCOPE_API_KEY=sk-xxxxxxxx
+DASHSCOPE_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+
+# Tavily 联网搜索（langchain-tavily 读取该变量）
+TAVILY_API_KEY=tvly-xxxxxxxx
+
+# 阿里云 OSS（图片上传；不用上传可暂不配）
+OSS_ACCESS_KEY_ID=your_access_key_id
+OSS_ACCESS_KEY_SECRET=your_access_key_secret
+OSS_BUCKET=your-bucket-name
+# 可选，默认 oss-cn-beijing.aliyuncs.com
+OSS_ENDPOINT=oss-cn-beijing.aliyuncs.com
+```
+
+说明：
+
+| 变量 | 必填 | 用途 |
+| --- | --- | --- |
+| `DASHSCOPE_API_KEY` | 是 | 调用 qwen 模型 |
+| `DASHSCOPE_BASE_URL` | 是 | DashScope 兼容接口地址 |
+| `TAVILY_API_KEY` | 是 | Agent 工具联网搜菜 |
+| `OSS_ACCESS_KEY_ID` / `OSS_ACCESS_KEY_SECRET` | 上传图片时 | OSS SDK 凭证 |
+| `OSS_BUCKET` | 上传图片时 | 存储桶名 |
+| `OSS_ENDPOINT` | 否 | 默认北京地域 Endpoint |
+
+> OSS 地域在代码中默认为 `cn-beijing`，若你的桶在其他地域，需同步修改 `app/api/v1/oss.py` 中的 `cfg.region`。
+
+---
+
+## 启动命令
+
+在仓库根目录执行（任选其一）：
+
+```bash
+# 方式一：直接跑入口（默认 127.0.0.1:8001）
+uv run python -m app.main
+
+# 方式二：uvicorn
+uv run uvicorn app.main:app --host 127.0.0.1 --port 8001
+
+# 需要热重载时（Windows 下偶发僵死进程，按需使用）
+uv run uvicorn app.main:app --host 127.0.0.1 --port 8001 --reload
+```
+
+启动后访问：
+
+- 前端页面：http://127.0.0.1:8001/
+- API 文档：http://127.0.0.1:8001/docs
+
+---
+
+## 主要 API
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| `POST` | `/api/v1/chat/stream` | SSE 流式对话；body：`message`、`thread_id`、可选 `image_url` |
+| `GET` | `/api/v1/chat/messages?thread_id=` | 拉取某会话历史 |
+| `DELETE` | `/api/v1/chat/messages?thread_id=` | 清空某会话 |
+| `GET` | `/api/v1/oss/presign?filename=` | 申请 OSS 预签名上传 URL |
+| `GET` | `/api/v1/proxy/image?url=` | 代理拉取外链图片 |
+
+流式对话请求示例：
+
+```bash
+curl -N -X POST "http://127.0.0.1:8001/api/v1/chat/stream" \
+  -H "Content-Type: application/json" \
+  -d "{\"message\":\"冰箱里有鸡蛋、番茄和青椒，晚饭做什么？\",\"thread_id\":\"demo-1\"}"
 ```
 
 ---
 
-## 本地联调顺序建议
+## 使用提示
 
-1. 启动 MySQL，确认库 `news_app` 与表数据就绪  
-2. 启动 Redis  
-3. 启动后端：`uvicorn main:app --reload --port 8000`  
-4. 启动前端：`npm run dev`  
-5. 浏览器打开前端地址，访问首页 / 登录 / AI 问答等页面验证  
+1. 打开前端后，可直接文字描述食材，或点击图片按钮上传后提问。
+2. 侧边栏支持多会话切换；「新对话」会新建 `thread_id`。
+3. 生成过程中可点停止；清空仅清除当前会话的服务端记忆。
+4. 本地数据库文件在 `app/db/`，一般无需手动创建。
 
 ---
 
-## 上传 GitHub 建议
+## 注意事项
 
-建议仓库根目录仅包含：
-
-```text
-README.md
-.gitignore
-toutiao_backend/
-xwzx-news/
-```
-
-推荐 `.gitignore` 至少忽略：
-
-```gitignore
-# Python
-__pycache__/
-*.pyc
-.venv/
-venv/
-.env
-
-# Node
-node_modules/
-xwzx-news/dist/
-
-# IDE / OS
-.idea/
-.vscode/
-.DS_Store
-Thumbs.db
-```
-
-**安全提示**：请勿将真实数据库密码、DashScope API Key 等敏感信息提交到公开仓库。上传前检查 `config/db_conf.py`、`config/ai_conf.py`，优先改用环境变量或本地未跟踪的配置文件。
+- **切勿**将 `.env`、真实 API Key、OSS 密钥提交到公开仓库。
+- `app/db/*.db` 为本地运行数据，建议加入 `.gitignore`。
+- 生产环境请收紧 CORS（当前为开发便利允许 `*`），并按需限制图片代理的目标域名。
 
 
