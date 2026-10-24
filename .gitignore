@@ -1,0 +1,11 @@
+.env
+.venv/
+.idea/
+.langgraph_api/
+__pycache__/
+*.py[cod]
+*.egg-info/
+app/db/*.db
+app/db/*.db-wal
+app/db/*.db-shm
+.DS_Store

@@ -7,131 +7,165 @@
   <meta name="description" content="上传食材，让私人厨师为你推荐菜谱" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/assets/app.css" />
+  <link rel="icon" href="/favicon.ico" />
 </head>
 <body>
-  <div class="shell">
-    <aside class="sidebar" id="sidebar">
-      <div class="sidebar-top">
-        <a class="brand" href="/" aria-label="私厨首页">
-          <span class="brand-logo" aria-hidden="true">
-            <svg viewBox="0 0 40 40" fill="none">
-              <defs>
-                <linearGradient id="logoGlow" x1="8" y1="4" x2="34" y2="36" gradientUnits="userSpaceOnUse">
-                  <stop stop-color="#3DDCB0"/>
-                  <stop offset="1" stop-color="#0F7A62"/>
-                </linearGradient>
-              </defs>
-              <rect x="2" y="2" width="36" height="36" rx="11" fill="url(#logoGlow)" opacity="0.18"/>
-              <path d="M12 27c0-7.2 4.6-12 8-12s8 4.8 8 12" stroke="url(#logoGlow)" stroke-width="2.2" stroke-linecap="round"/>
-              <path d="M10 27.5h20" stroke="#E8F7F1" stroke-width="2" stroke-linecap="round"/>
-              <path d="M16.5 15.5c0-3.4 1.7-5.6 3.5-5.6s3.5 2.2 3.5 5.6" stroke="#E8F7F1" stroke-width="2" stroke-linecap="round"/>
-              <circle cx="20" cy="8.8" r="1.7" fill="#F4C15D"/>
-              <path d="M27.5 12.5c1.8.4 3.2 1.8 3.5 3.6" stroke="#F4C15D" stroke-width="1.6" stroke-linecap="round"/>
-              <circle cx="31.4" cy="17" r="1.2" fill="#F4C15D"/>
-            </svg>
-          </span>
-          <span class="brand-text">
-            <strong>私厨</strong>
-            <em>Personal Chief</em>
-          </span>
-        </a>
-        <button type="button" class="new-chat-btn" id="newChatBtn">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-            <path d="M12 5v14M5 12h14"/>
-          </svg>
-          新对话
-        </button>
-      </div>
+  <div class="atmosphere" aria-hidden="true">
+    <div class="orb orb-a"></div>
+    <div class="orb orb-b"></div>
+    <div class="grain"></div>
+  </div>
 
-      <div class="sidebar-section-label">历史会话</div>
-      <nav class="thread-nav" id="threadNav" aria-label="会话历史"></nav>
-      <p class="thread-empty" id="threadEmpty">暂无历史，开始一次对话吧</p>
+  <div class="shell" id="shell">
+    <div class="sidebar-backdrop" id="sidebarBackdrop" hidden></div>
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-head">
+        <div>
+          <p class="sidebar-kicker" id="sidebarKicker">History</p>
+          <h2 id="sidebarTitle">历史会话</h2>
+        </div>
+        <button type="button" class="solid-btn sidebar-new" id="sidebarNewChatBtn">新对话</button>
+      </div>
+      <div class="sidebar-tabs" role="tablist">
+        <button type="button" class="sidebar-tab is-active" data-panel="threads" role="tab">会话</button>
+        <button type="button" class="sidebar-tab" data-panel="pantry" role="tab">冰箱</button>
+        <button type="button" class="sidebar-tab" data-panel="profile" role="tab">口味</button>
+      </div>
+      <div class="sidebar-panel" id="panelThreads">
+        <p class="thread-empty" id="threadEmpty">还没有历史对话，发送第一条消息后会出现在这里。</p>
+        <nav class="thread-nav" id="threadNav" aria-label="历史会话"></nav>
+      </div>
+      <div class="sidebar-panel" id="panelPantry" hidden>
+        <p class="thread-empty" id="pantryEmpty">还没有库存。拍一张冰箱照片，或在下方手动添加。</p>
+        <ul class="pantry-list" id="pantryList"></ul>
+        <form class="pantry-add" id="pantryAddForm">
+          <input type="text" name="name" id="pantryNameInput" placeholder="食材名" maxlength="20" required />
+          <select name="category" id="pantryCategorySelect">
+            <option value="蔬菜">蔬菜</option>
+            <option value="水果">水果</option>
+            <option value="肉蛋">肉蛋</option>
+            <option value="豆制品">豆制品</option>
+            <option value="主食">主食</option>
+            <option value="调味">调味</option>
+            <option value="其他">其他</option>
+          </select>
+          <button type="submit" class="solid-btn pantry-add-btn">加入</button>
+        </form>
+      </div>
+      <div class="sidebar-panel" id="panelProfile" hidden>
+        <form class="profile-form" id="profileForm">
+          <label>用餐人数
+            <input type="number" name="household_size" id="profileHousehold" min="1" max="12" value="1" />
+          </label>
+          <label>口味偏好
+            <input type="text" name="taste_pref" id="profileTaste" placeholder="清淡, 家常, 少油" />
+          </label>
+          <label>爱吃
+            <input type="text" name="likes" id="profileLikes" placeholder="番茄, 汤" />
+          </label>
+          <label>不吃 / 忌口
+            <input type="text" name="dislikes" id="profileDislikes" placeholder="香菜, 很辣" />
+          </label>
+          <label>过敏
+            <input type="text" name="allergies" id="profileAllergies" placeholder="花生, 海鲜" />
+          </label>
+          <label>饮食限制
+            <input type="text" name="diet_tags" id="profileDiet" placeholder="少盐" />
+          </label>
+          <label>厨具
+            <input type="text" name="appliances" id="profileAppliances" placeholder="炒锅, 烤箱" />
+          </label>
+          <label>备注
+            <textarea name="notes" id="profileNotes" rows="2" placeholder="自由补充"></textarea>
+          </label>
+          <button type="submit" class="solid-btn profile-save">保存档案</button>
+          <p class="profile-saved" id="profileSaved" hidden>已保存，新对话也会沿用</p>
+        </form>
+      </div>
     </aside>
 
-    <div class="sidebar-backdrop" id="sidebarBackdrop" hidden></div>
-
-    <section class="main">
-      <header class="main-bar">
-        <button type="button" class="icon-ghost" id="menuBtn" aria-label="打开会话列表">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-            <path d="M4 7h16M4 12h16M4 17h16"/>
+  <div class="app">
+    <header class="topbar">
+      <button type="button" class="icon-btn menu-btn" id="menuBtn" title="历史会话" aria-label="打开历史会话">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path d="M5 7h14M5 12h14M5 17h10"/>
+        </svg>
+      </button>
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 32 32" fill="none">
+            <path d="M8 22c0-6 4-10 8-10s8 4 8 10" stroke="currentColor" stroke-width="1.6"/>
+            <path d="M6 22h20" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+            <path d="M12 12c0-3 1.5-5 4-5s4 2 4 5" stroke="currentColor" stroke-width="1.6"/>
+            <circle cx="16" cy="7" r="1.4" fill="currentColor"/>
           </svg>
-        </button>
-        <div class="main-title">
-          <h1 id="chatTitle">新对话</h1>
-          <p id="threadLabel">就绪</p>
+        </span>
+        <div class="brand-text">
+          <h1>私厨</h1>
+          <p>Personal Chief</p>
         </div>
-        <button type="button" class="icon-ghost" id="clearBtn" title="清空当前会话" aria-label="清空当前会话">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-            <path d="M4 7h16"/>
-            <path d="M10 11v6M14 11v6"/>
-            <path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12"/>
-            <path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/>
-          </svg>
-        </button>
-      </header>
+      </div>
+      <h2 class="chat-title" id="chatTitle">新对话</h2>
+    </header>
 
-      <main class="stage" id="stage">
-        <section class="welcome" id="welcome">
-          <div class="welcome-mark" aria-hidden="true">
-            <svg viewBox="0 0 48 48" fill="none">
-              <path d="M12 34c0-9 6-15 12-15s12 6 12 15" stroke="currentColor" stroke-width="2"/>
-              <path d="M9 34h30" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-              <path d="M18 19c0-4.5 2.2-7.5 6-7.5s6 3 6 7.5" stroke="currentColor" stroke-width="2"/>
-              <circle cx="24" cy="10" r="2" fill="currentColor"/>
+    <main class="stage" id="stage">
+      <section class="welcome" id="welcome">
+        <p class="eyebrow">你的独家厨房顾问</p>
+        <h2 class="welcome-title">拍一张冰箱里的食材，<br />我来规划今晚吃什么</h2>
+        <p class="welcome-sub">记住冰箱库存与口味 · 检索真实菜谱 · 按营养与难度排序</p>
+        <div class="hints">
+          <button type="button" class="hint" data-prompt="这是我冰箱里的食材，帮我推荐几道今晚能做的菜">今晚想做点什么</button>
+          <button type="button" class="hint" data-prompt="我有鸡蛋、番茄、青椒和葱，请给出两道简单家常菜">只有几样家常菜</button>
+          <button type="button" class="hint" data-prompt="请优先推荐制作简单、营养均衡的菜谱，并附上参考做法">要简单又营养</button>
+        </div>
+      </section>
+
+      <section class="messages" id="messages" hidden></section>
+    </main>
+
+    <footer class="composer-wrap">
+      <div class="composer" id="composer">
+        <div class="preview" id="preview" hidden>
+          <img id="previewImg" alt="待发送图片预览" />
+          <button type="button" class="preview-remove" id="removeImageBtn" aria-label="移除图片">×</button>
+        </div>
+        <div class="composer-row">
+          <button type="button" class="icon-btn" id="pickImageBtn" title="上传食材图片" aria-label="上传食材图片">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+              <rect x="3" y="3" width="18" height="18" rx="2"/>
+              <circle cx="9" cy="9" r="2"/>
+              <path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/>
             </svg>
-          </div>
-          <h2>今晚吃什么，我来帮你排</h2>
-          <p>上传冰箱食材照片，或直接描述现有食材，私厨会检索菜谱并按难度与营养排序。</p>
-          <div class="hints">
-            <button type="button" class="hint" data-prompt="这是我冰箱里的食材，帮我推荐几道今晚能做的菜">今晚想做点什么</button>
-            <button type="button" class="hint" data-prompt="我有鸡蛋、番茄、青椒和葱，请给出两道简单家常菜">只有几样家常菜</button>
-            <button type="button" class="hint" data-prompt="请优先推荐制作简单、营养均衡的菜谱，并附上参考做法">要简单又营养</button>
-          </div>
-        </section>
-
-        <section class="messages" id="messages" hidden></section>
-      </main>
-
-      <footer class="composer-wrap">
-        <div class="composer" id="composer">
-          <div class="preview" id="preview" hidden>
-            <img id="previewImg" alt="待发送图片预览" />
-            <button type="button" class="preview-remove" id="removeImageBtn" aria-label="移除图片">×</button>
-          </div>
-          <div class="composer-row">
-            <button type="button" class="icon-btn" id="pickImageBtn" title="上传食材图片" aria-label="上传食材图片">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
-                <rect x="3" y="3" width="18" height="18" rx="2"/>
-                <circle cx="9" cy="9" r="2"/>
-                <path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/>
+          </button>
+          <input type="file" id="fileInput" accept="image/*" hidden />
+          <textarea
+            id="messageInput"
+            rows="1"
+            placeholder="描述食材，或先上传一张照片…"
+            enterkeyhint="send"
+          ></textarea>
+          <button type="button" class="send-btn is-send is-idle" id="sendBtn" aria-label="发送" title="发送">
+            <span class="send-btn-inner">
+              <svg class="icon-send" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M4.4 12.2 19.2 5.3c.7-.3 1.4.4 1.1 1.1l-6.9 14.8c-.3.7-1.3.7-1.6 0l-2.2-5.4-5.4-2.2c-.7-.3-.7-1.3 0-1.6Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+                <path d="m10.6 13.4 3.3-3.3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
               </svg>
-            </button>
-            <input type="file" id="fileInput" accept="image/*" hidden />
-            <textarea
-              id="messageInput"
-              rows="1"
-              placeholder="给私厨发消息，或粘贴/上传食材图…"
-              enterkeyhint="send"
-            ></textarea>
-            <div class="composer-actions">
-              <button type="button" class="action-btn is-send" id="actionBtn" disabled aria-label="发送" title="发送">
-                <svg class="icon-send" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-                  <path d="M5 12h14"/>
-                  <path d="m13 6 6 6-6 6"/>
-                </svg>
-                <svg class="icon-stop" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" hidden>
-                  <rect x="7" y="7" width="10" height="10" rx="1.5"/>
-                </svg>
-              </button>
-            </div>
-          </div>
-          <p class="composer-meta">Enter 发送 · Shift+Enter 换行 · 生成中再次点击可取消</p>
+              <svg class="icon-stop" viewBox="0 0 24 24" fill="currentColor" hidden aria-hidden="true">
+                <rect x="7" y="7" width="10" height="10" rx="2"/>
+              </svg>
+              <span class="send-label" id="sendLabel">发送</span>
+            </span>
+          </button>
         </div>
-      </footer>
-    </section>
+        <p class="composer-meta">
+          <span id="threadLabel">会话就绪</span>
+          <span class="composer-hint">Enter 发送 · Shift+Enter 换行</span>
+        </p>
+      </div>
+    </footer>
+  </div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/marked@15.0.7/marked.min.js"></script>

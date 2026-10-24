@@ -1,4 +1,6 @@
 import os
+from contextlib import asynccontextmanager
+
 from dotenv import load_dotenv
 load_dotenv()
 from fastapi import FastAPI
@@ -8,15 +10,25 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.v1 import chat
 from app.api.v1 import oss
 from app.api.v1 import proxy
+from app.api.v1 import memory
 from app.common.logger import setup_logging
 
 # 初始化日志配置
 setup_logging()
 
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    from app.agents.personal_chief import ensure_agent
+    await ensure_agent()
+    yield
+
+
 app = FastAPI(
     title="Personal Chief API",
     description="私厨",
-    version="0.1.0"
+    version="0.1.0",
+    lifespan=lifespan,
 )
 
 # 1. 配置跨域资源共享 (CORS)
@@ -31,6 +43,7 @@ app.add_middleware(
 
 # 2.挂载路由
 app.include_router(chat.router, prefix="/api/v1", tags=["对话"])
+app.include_router(memory.router, prefix="/api/v1", tags=["冰箱与口味"])
 app.include_router(oss.router, prefix="/api/v1", tags=["申请上传签名url"])
 app.include_router(proxy.router, prefix="/api/v1", tags=["图片代理"])
 

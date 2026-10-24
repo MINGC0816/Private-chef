@@ -1,161 +1,96 @@
-# 私厨 · Private Chief
+# 2. 基于 LangChain 的私厨助手
 
-上传食材照片或文字清单，由 AI 私人厨师识别食材、联网检索菜谱，并按**营养价值**与**制作难度**排序，给出结构化推荐方案。
+技术栈：Python / FastAPI / LangChain / LangGraph / FastMCP / Tavily / SQLite / 阿里云 OSS / SSE
 
----
-
-## 功能概览
-
-| 能力 | 说明 |
-| --- | --- |
-| 多模态对话 | 支持文字描述 + 食材图片，流式输出菜谱建议 |
-| 联网搜菜 | Agent 优先调用 Tavily 搜索真实菜谱，再整理打分 |
-| 会话记忆 | 基于 LangGraph SqliteSaver，按 `thread_id` 保留多轮上下文 |
-| 图片上传 | 阿里云 OSS 预签名直传，前端预览后一并送给模型 |
-| 参考图代理 | `/api/v1/proxy/image` 缓解外链防盗链导致的图片无法显示 |
-| Web 界面 | 内置静态前端：历史会话、新对话、停止生成、清空当前会话 |
+- 实现「看图识食材 → 写入冰箱库存 → 联网搜菜谱 → 按营养与难度推荐」端到端 Agent；多模态模型识别食材并评估新鲜度，忌口与过敏作为硬约束。
+- 全部工具以 FastMCP 部署（库存 upsert/list/remove、口味档案读写、Tavily `web_search`），经 LangChain `MCPAdapter` 接入 Agent；优先检索真实菜谱，失败再由模型补全，按营养价值、制作难度打分排序并结构化输出。
+- FastAPI + SSE 实现流式对话、多会话切换、随时停止生成；LangGraph + SQLite 按会话持久化，支持多轮追问。冰箱库存与口味档案落在同一库中、跨会话生效，每轮注入「长期档案 / 当前库存」。
+- 图片经阿里云 OSS 预签名直传；菜谱参考图走服务端代理规避防盗链；侧边栏提供会话 / 冰箱 / 口味面板，可手改库存与忌口。
 
 ---
 
-## 技术栈
+## 系统界面
 
-| 层级 | 技术 |
-| --- | --- |
-| 大模型 | 通义千问（DashScope OpenAI 兼容接口），默认 `qwen3.5-plus` |
-| Agent | LangChain `create_agent` + TavilySearch |
-| 会话持久化 | LangGraph `SqliteSaver`（`app/db/personal_chief.db`） |
-| 后端 | Python ≥ 3.13、FastAPI、Uvicorn |
-| 对象存储 | 阿里云 OSS（预签名上传） |
-| 前端 | 原生 HTML / CSS / JS（`app/static`） |
+### 看图识食材
+
+上传冰箱照片后识别蔬菜水果并评估新鲜度；左侧为历史会话，可切换「会话 / 冰箱 / 口味」。
+
+![看图识食材](app/演示图片.png)
+
+### 菜谱推荐
+
+按制作难度与营养价值打分，给出做法要点与来源链接。
+
+![菜谱推荐](app/演示图片2.png)
 
 ---
 
-## 工作流程
+## 架构
 
 ```
-用户上传食材图 / 输入清单
+看图 / 口述食材 / 改口味
         ↓
-识别食材与新鲜度 → 整理「可用食材清单」
+FastAPI + SSE
         ↓
-调用 web_search（Tavily）检索菜谱
+LangChain Agent（每轮注入档案 + 库存）
         ↓
-按营养价值、制作难度打分排序
+FastMCP 工具
+  ├─ pantry_* / profile_*  → SQLite
+  └─ web_search            → Tavily
         ↓
-流式返回结构化推荐报告（可含参考图）
+结构化菜谱推荐（带来源链接）
 ```
+
+同一份 `app/db/personal_chief.db`：
+
+| 存储 | 职责 | 清聊天是否丢失 |
+| --- | --- | --- |
+| LangGraph checkpoint + `chat_threads` | 本会话对话 | 会 |
+| `pantry_items` / `user_profile` | 冰箱与口味（跨会话） | 不会 |
 
 ---
 
-## 目录结构
+## 环境与启动
+
+Python ≥ 3.13，推荐 [uv](https://github.com/astral-sh/uv)。仓库根目录配置 `.env`：
+
+```env
+DASHSCOPE_API_KEY=sk-xxxxxxxx
+DASHSCOPE_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+TAVILY_API_KEY=tvly-xxxxxxxx
+# 上传图片时再配 OSS_*
+```
+
+```bash
+uv sync
+
+# Windows 中文路径请用这一条，避免 uv trampoline 失败
+uv run python -m uvicorn app.main:app --host 127.0.0.1 --port 8001
+
+# 仅以 stdio 暴露 MCP 服务器
+uv run python -m app.mcp
+```
+
+- 前端：http://127.0.0.1:8001/
+- API 文档：http://127.0.0.1:8001/docs
+
+日志出现 `已接入 MCP 工具: ['pantry_upsert', ... 'web_search']` 即表示工具已挂上 Agent。
+
+---
+
+## 目录
 
 ```
 app/
-├── main.py                 # FastAPI 入口，挂载路由与静态资源
-├── agents/
-│   └── personal_chief.py   # 私厨 Agent、流式生成、会话读写
-├── api/v1/
-│   ├── chat.py             # 对话流式 / 历史 / 清空
-│   ├── oss.py              # OSS 预签名上传
-│   └── proxy.py            # 外链图片代理
-├── models/
-│   └── schemas.py          # 请求体模型
-├── common/
-│   └── logger.py           # 日志
-├── db/
-│   └── personal_chief.db   # 会话检查点（运行后自动生成）
-└── static/                 # Web 前端
-    ├── index.html
-    └── assets/
+├── main.py                 # FastAPI：lifespan 接入 MCP Agent
+├── agents/personal_chief.py
+├── mcp/server.py           # FastMCP 工具
+├── api/v1/                 # chat / memory / oss / proxy
+├── db/store.py             # 库存与档案
+└── static/                 # 会话 / 冰箱 / 口味界面
 ```
 
-> 本包以 `app` 形式被导入（如 `app.main:app`）。请在**包含本目录的仓库根目录**（即存在 `pyproject.toml` / `.env` 的那一层）安装依赖并启动。
-
----
-
-## 环境要求
-
-- **Python** ≥ 3.13
-- 推荐使用 **[uv](https://github.com/astral-sh/uv)** 管理依赖
-- 可用的 **DashScope（通义）** API Key
-- 可用的 **Tavily** API Key（联网搜菜）
-- 若需图片上传：阿里云 **OSS** 存储桶与 AccessKey
-
----
-
-## 配置环境
-
-### 1. 安装依赖
-
-在仓库根目录执行：
-
-```bash
-# 若尚未创建虚拟环境
-uv sync
-
-# 或使用已有 .venv
-uv pip install -e .
-```
-
-也可直接：
-
-```bash
-uv run python -c "import fastapi; print('ok')"
-```
-
-### 2. 配置环境变量
-
-在仓库根目录创建 `.env`（不要提交到 Git）：
-
-```env
-# 通义千问（DashScope OpenAI 兼容）
-DASHSCOPE_API_KEY=sk-xxxxxxxx
-DASHSCOPE_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
-
-# Tavily 联网搜索（langchain-tavily 读取该变量）
-TAVILY_API_KEY=tvly-xxxxxxxx
-
-# 阿里云 OSS（图片上传；不用上传可暂不配）
-OSS_ACCESS_KEY_ID=your_access_key_id
-OSS_ACCESS_KEY_SECRET=your_access_key_secret
-OSS_BUCKET=your-bucket-name
-# 可选，默认 oss-cn-beijing.aliyuncs.com
-OSS_ENDPOINT=oss-cn-beijing.aliyuncs.com
-```
-
-说明：
-
-| 变量 | 必填 | 用途 |
-| --- | --- | --- |
-| `DASHSCOPE_API_KEY` | 是 | 调用 qwen 模型 |
-| `DASHSCOPE_BASE_URL` | 是 | DashScope 兼容接口地址 |
-| `TAVILY_API_KEY` | 是 | Agent 工具联网搜菜 |
-| `OSS_ACCESS_KEY_ID` / `OSS_ACCESS_KEY_SECRET` | 上传图片时 | OSS SDK 凭证 |
-| `OSS_BUCKET` | 上传图片时 | 存储桶名 |
-| `OSS_ENDPOINT` | 否 | 默认北京地域 Endpoint |
-
-> OSS 地域在代码中默认为 `cn-beijing`，若你的桶在其他地域，需同步修改 `app/api/v1/oss.py` 中的 `cfg.region`。
-
----
-
-## 启动命令
-
-在仓库根目录执行（任选其一）：
-
-```bash
-# 方式一：直接跑入口（默认 127.0.0.1:8001）
-uv run python -m app.main
-
-# 方式二：uvicorn
-uv run uvicorn app.main:app --host 127.0.0.1 --port 8001
-
-# 需要热重载时（Windows 下偶发僵死进程，按需使用）
-uv run uvicorn app.main:app --host 127.0.0.1 --port 8001 --reload
-```
-
-启动后访问：
-
-- 前端页面：http://127.0.0.1:8001/
-- API 文档：http://127.0.0.1:8001/docs
+本包以 `app` 形式导入，请在含 `pyproject.toml` 的仓库根目录安装并启动。
 
 ---
 
@@ -163,35 +98,19 @@ uv run uvicorn app.main:app --host 127.0.0.1 --port 8001 --reload
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| `POST` | `/api/v1/chat/stream` | SSE 流式对话；body：`message`、`thread_id`、可选 `image_url` |
-| `GET` | `/api/v1/chat/messages?thread_id=` | 拉取某会话历史 |
-| `DELETE` | `/api/v1/chat/messages?thread_id=` | 清空某会话 |
-| `GET` | `/api/v1/oss/presign?filename=` | 申请 OSS 预签名上传 URL |
-| `GET` | `/api/v1/proxy/image?url=` | 代理拉取外链图片 |
-
-流式对话请求示例：
-
-```bash
-curl -N -X POST "http://127.0.0.1:8001/api/v1/chat/stream" \
-  -H "Content-Type: application/json" \
-  -d "{\"message\":\"冰箱里有鸡蛋、番茄和青椒，晚饭做什么？\",\"thread_id\":\"demo-1\"}"
-```
+| `POST` | `/api/v1/chat/stream` | SSE 流式对话 |
+| `GET` / `DELETE` | `/api/v1/chat/messages` | 会话历史 / 清空检查点 |
+| `GET` / `PATCH` / `DELETE` | `/api/v1/threads` | 会话目录 |
+| `GET` / `POST` | `/api/v1/pantry` | 库存列表 / 手加 |
+| `POST` | `/api/v1/pantry/remove` | 移除库存 |
+| `GET` / `PUT` | `/api/v1/profile` | 口味档案 |
+| `GET` | `/api/v1/oss/presign` | OSS 预签名上传 |
+| `GET` | `/api/v1/proxy/image` | 外链图片代理 |
 
 ---
 
-## 使用提示
+## 注意
 
-1. 打开前端后，可直接文字描述食材，或点击图片按钮上传后提问。
-2. 侧边栏支持多会话切换；「新对话」会新建 `thread_id`。
-3. 生成过程中可点停止；清空仅清除当前会话的服务端记忆。
-4. 本地数据库文件在 `app/db/`，一般无需手动创建。
-
----
-
-## 注意事项
-
-- **切勿**将 `.env`、真实 API Key、OSS 密钥提交到公开仓库。
-- `app/db/*.db` 为本地运行数据，建议加入 `.gitignore`。
-- 生产环境请收紧 CORS（当前为开发便利允许 `*`），并按需限制图片代理的目标域名。
-
-
+- 勿将 `.env` 与密钥提交到仓库；`app/db/*.db` 建议 gitignore。
+- 照片里未出现的食材不会自动删除，避免误清抽屉。
+- 清空会话只清聊天，不清冰箱和档案。

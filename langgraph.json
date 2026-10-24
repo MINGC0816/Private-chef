@@ -1,7 +1,0 @@
-{
-    "dependencies": ["."],
-    "graphs": {
-        "chief_agent": "./app/agents/personal_chief.py:agent"
-    },
-    "env": ".env"
-}
