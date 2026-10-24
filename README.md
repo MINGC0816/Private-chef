@@ -1,4 +1,4 @@
-# 2. 基于 LangChain 的私厨助手
+# 2. 基于 Agent 的私厨助手
 
 技术栈：Python / FastAPI / LangChain / LangGraph / FastMCP / Tavily / SQLite / 阿里云 OSS / SSE
 
