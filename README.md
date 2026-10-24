@@ -107,10 +107,4 @@ app/
 | `GET` | `/api/v1/oss/presign` | OSS 预签名上传 |
 | `GET` | `/api/v1/proxy/image` | 外链图片代理 |
 
----
 
-## 注意
-
-- 勿将 `.env` 与密钥提交到仓库；`app/db/*.db` 建议 gitignore。
-- 照片里未出现的食材不会自动删除，避免误清抽屉。
-- 清空会话只清聊天，不清冰箱和档案。
